@@ -172,6 +172,31 @@ pnpm db:studio
 - **Admin Panel**: Manage users, permissions, and system configurations.
 - **User Settings**: Update profile and security settings (change password).
 
+## 🚢 Deployment
+
+For production deployment, it is recommended to use **PM2** to manage the process.
+
+### 1. Build the project
+
+```bash
+pnpm build
+```
+
+### 2. Start with PM2
+
+The project includes an `ecosystem.config.js` file for easy deployment.
+
+```bash
+# Register or update the process in PM2
+pm2 start ecosystem.config.js
+
+# To restart after updates
+pm2 restart next-doc
+
+# Monitoring logs
+pm2 logs next-doc
+```
+
 ## 📄 License
 
 This project is licensed under the [MIT](LICENSE) License.
