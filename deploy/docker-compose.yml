@@ -1,0 +1,30 @@
+services:
+  next-doc:
+    build: .
+    container_name: next-doc
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DB_TYPE=postgres
+      - POSTGRES_URL=postgres://user:password@postgres:5432/nextdoc
+      - BETTER_AUTH_SECRET=your_secret_here
+      - BETTER_AUTH_URL=https://your-domain.com
+      - NEXT_PUBLIC_APP_URL=https://your-domain.com
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: next-doc-db
+    restart: always
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=nextdoc
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
