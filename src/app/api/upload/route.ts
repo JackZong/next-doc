@@ -3,8 +3,8 @@ import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { getCurrentUser } from '@/lib/auth';
-import { getDbSync } from '@/lib/db';
-import { attachments, projects } from '@/lib/db/schema/sqlite';
+import {  getDbSync , getSchema } from '@/lib/db';
+
 import { eq } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
 
@@ -64,13 +64,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDbSync();
+    const db = getDbSync(); const schema = getSchema();
     // 获取项目 ID
-    const project = await db
+    const projectList = await db
       .select()
-      .from(projects)
-      .where(eq(projects.identify, identify))
-      .get();
+      .from(schema.projects)
+      .where(eq((schema.projects as any).identify, identify))
+      .limit(1);
+    const project = projectList[0];
 
     if (!project) {
       return NextResponse.json(
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
 
     // 记录到附件表
     try {
-      await db.insert(attachments).values({
+      await db.insert(schema.attachments).values({
         id: uuid(),
         name: file.name,
         path: publicUrl,
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
         mimeType: file.type,
         projectId: project.id,
         uploaderId: user.userId,
-      }).run();
+      });
     } catch (dbError) {
       console.error('保存附件记录失败:', dbError);
       // 虽然数据库记录失败，但文件已经上传，仍然返回成功。

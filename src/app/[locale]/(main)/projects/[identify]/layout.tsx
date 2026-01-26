@@ -1,6 +1,5 @@
 import { Metadata } from 'next';
-import { getDbSync } from '@/lib/db';
-import { projects } from '@/lib/db/schema/sqlite';
+import {  getDbSync, getSchema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 
 export async function generateMetadata({ 
@@ -13,18 +12,21 @@ export async function generateMetadata({
   const { identify } = resolvedParams;
   
   try {
-    const db = getDbSync();
+    const db = getDbSync() as any;
+    const schema = getSchema();
     
     // 查询项目信息
-    const project = await db
+    const projectList = await db
       .select({
-        name: projects.name,
-        description: projects.description,
-        favicon: projects.favicon,
+        name: (schema.projects as any).name,
+        description: (schema.projects as any).description,
+        favicon: (schema.projects as any).favicon,
       })
-      .from(projects)
-      .where(eq(projects.identify, identify))
-      .get();
+      .from(schema.projects)
+      .where(eq((schema.projects as any).identify, identify))
+      .limit(1);
+
+    const project = projectList[0];
 
     if (!project) {
       return {

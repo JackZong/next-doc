@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getDbSync } from '@/lib/db';
-import { users } from '@/lib/db/schema/sqlite';
+import {  getDbSync, getSchema } from '@/lib/db';
 import { desc } from 'drizzle-orm';
 
 // 获取所有用户列表
@@ -17,22 +16,21 @@ export async function GET() {
       );
     }
 
-    const db = getDbSync();
+    const db = getDbSync(); const schema = getSchema();
 
     const userList = await db
       .select({
-        id: users.id,
-        account: users.account,
-        name: users.name,
-        email: users.email,
-        role: users.role,
-        status: users.status,
-        avatar: users.avatar,
-        createdAt: users.createdAt,
+        id: (schema.users as any).id,
+        account: (schema.users as any).account,
+        name: (schema.users as any).name,
+        email: (schema.users as any).email,
+        role: (schema.users as any).role,
+        status: (schema.users as any).status,
+        avatar: (schema.users as any).avatar,
+        createdAt: (schema.users as any).createdAt,
       })
-      .from(users)
-      .orderBy(desc(users.createdAt))
-      .all();
+      .from(schema.users)
+      .orderBy(desc((schema.users as any).createdAt));
 
     return NextResponse.json({
       success: true,
@@ -101,14 +99,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDbSync();
+    const db = getDbSync() as any;
+    const schema = getSchema();
     
     // 检查账号是否已存在
-    const existingUserAccount = await db
+    const existingUserAccountList = await db
       .select()
-      .from(users)
-      .where(eq(users.account, account))
-      .get();
+      .from(schema.users)
+      .where(eq((schema.users as any).account, account))
+      .limit(1);
+    
+    const existingUserAccount = existingUserAccountList[0];
 
     if (existingUserAccount) {
       return NextResponse.json(
@@ -118,11 +119,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 检查邮箱是否已存在
-    const existingUserEmail = await db
+    const existingUserEmailList = await db
       .select()
-      .from(users)
-      .where(eq(users.email, email))
-      .get();
+      .from(schema.users)
+      .where(eq((schema.users as any).email, email))
+      .limit(1);
+      
+    const existingUserEmail = existingUserEmailList[0];
 
     if (existingUserEmail) {
       return NextResponse.json(
@@ -136,7 +139,7 @@ export async function POST(request: NextRequest) {
 
     // 创建用户
     const userId = uuid();
-    await db.insert(users).values({
+    await db.insert(schema.users).values({
       id: userId,
       account,
       email,
@@ -144,7 +147,7 @@ export async function POST(request: NextRequest) {
       name,
       role: role as 'admin' | 'editor' | 'viewer',
       status: 'active',
-    }).run();
+    });
 
     return NextResponse.json({
       success: true,

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuid } from 'uuid';
-import { getDbSync } from '@/lib/db';
-import { documents, projects, projectMembers } from '@/lib/db/schema/sqlite';
+import { getDbSync, getSchema } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { eq, and, asc, isNull } from 'drizzle-orm';
 
@@ -19,25 +18,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const db = getDbSync();
+    const db = getDbSync() as any;
+    const schema = getSchema();
 
     // 获取项目
-    const project = await db
+    const projectList = await db
       .select({
-        id: projects.id,
-        visibility: projects.visibility,
-        ownerId: projects.ownerId,
+        id: (schema.projects as any).id,
+        visibility: (schema.projects as any).visibility,
+        ownerId: (schema.projects as any).ownerId,
+        identify: (schema.projects as any).identify,
       })
-      .from(projects)
+      .from(schema.projects)
       .where(
         projectIdentify 
-          ? eq(projects.identify, projectIdentify) 
-          : eq(projects.id, projectId!)
+          ? eq((schema.projects as any).identify, projectIdentify) 
+          : eq((schema.projects as any).id, projectId!)
       )
-      .get();
+      .limit(1);
+    const project = projectList[0];
 
     if (!project || !project.id) {
-      console.error('项目不存在或 ID 丢失:', { projectIdentify, projectId, foundProject: project });
       return NextResponse.json(
         { error: '项目不存在' },
         { status: 404 }
@@ -54,16 +55,17 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      const membership = await db
+      const membershipList = await db
         .select()
-        .from(projectMembers)
+        .from(schema.projectMembers)
         .where(
           and(
-            eq(projectMembers.projectId, project.id),
-            eq(projectMembers.userId, tokenPayload.userId)
+            eq((schema.projectMembers as any).projectId, project.id),
+            eq((schema.projectMembers as any).userId, tokenPayload.userId)
           )
         )
-        .get();
+        .limit(1);
+      const membership = membershipList[0];
 
       if (!membership && project.ownerId !== tokenPayload.userId) {
         return NextResponse.json(
@@ -74,22 +76,19 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取文档列表
-    const docsResult = await db
+    const docs = await db
       .select()
-      .from(documents)
-      .where(eq(documents.projectId, project.id))
-      .orderBy(asc(documents.sort), asc(documents.createdAt))
-      .all();
-
-    const docs = docsResult || [];
+      .from(schema.documents)
+      .where(eq((schema.documents as any).projectId, project.id))
+      .orderBy(asc((schema.documents as any).sort), asc((schema.documents as any).createdAt));
 
     // 构建文档树
-    interface DocumentTreeItem extends NonNullable<typeof docsResult[0]> {
+    type DocumentTreeItem = any & {
       children: DocumentTreeItem[];
-    }
+    };
 
     const buildTree = (parentId: string | null): DocumentTreeItem[] => {
-      return docs
+      return (docs as any[])
         .filter((doc) => doc.parentId === parentId)
         .map((doc) => ({
           ...doc,
@@ -141,18 +140,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = getDbSync();
+    const db = getDbSync() as any;
+    const schema = getSchema();
 
     // 获取项目
-    const project = await db
+    const projectList = await db
       .select({
-        id: projects.id,
-        identify: projects.identify,
-        ownerId: projects.ownerId,
+        id: (schema.projects as any).id,
+        identify: (schema.projects as any).identify,
+        ownerId: (schema.projects as any).ownerId,
       })
-      .from(projects)
-      .where(eq(projects.id, projectId))
-      .get();
+      .from(schema.projects)
+      .where(eq((schema.projects as any).id, projectId))
+      .limit(1);
+    
+    const project = projectList[0];
 
     if (!project) {
       return NextResponse.json(
@@ -162,16 +164,17 @@ export async function POST(request: NextRequest) {
     }
 
     // 权限检查
-    const membership = await db
+    const membershipList = await db
       .select()
-      .from(projectMembers)
+      .from(schema.projectMembers)
       .where(
         and(
-          eq(projectMembers.projectId, projectId),
-          eq(projectMembers.userId, tokenPayload.userId)
+          eq((schema.projectMembers as any).projectId, projectId),
+          eq((schema.projectMembers as any).userId, tokenPayload.userId)
         )
       )
-      .get();
+      .limit(1);
+    const membership = membershipList[0];
 
     const canEdit = 
       project.ownerId === tokenPayload.userId ||
@@ -193,21 +196,20 @@ export async function POST(request: NextRequest) {
     // 获取排序值
     const existingDocs = await db
       .select()
-      .from(documents)
+      .from(schema.documents)
       .where(
         and(
-          eq(documents.projectId, projectId),
-          parentId ? eq(documents.parentId, parentId) : isNull(documents.parentId)
+          eq((schema.documents as any).projectId, projectId),
+          parentId ? eq((schema.documents as any).parentId, parentId) : isNull((schema.documents as any).parentId)
         )
-      )
-      .all();
+      );
 
-    const maxSort = existingDocs.reduce((max, doc) => Math.max(max, doc.sort), -1);
+    const maxSort = (existingDocs as any[]).reduce((max, doc) => Math.max(max, doc.sort), -1);
 
     const docId = uuid();
 
     // 创建文档
-    await db.insert(documents).values({
+    await db.insert(schema.documents).values({
       id: docId,
       projectId,
       parentId: parentId || null,
@@ -219,17 +221,17 @@ export async function POST(request: NextRequest) {
       status,
       authorId: tokenPayload.userId,
       viewCount: 0,
-    }).run();
+    });
 
-    const newDoc = await db
+    const newDocList = await db
       .select()
-      .from(documents)
-      .where(eq(documents.id, docId))
-      .get();
+      .from(schema.documents)
+      .where(eq((schema.documents as any).id, docId))
+      .limit(1);
 
     return NextResponse.json({
       success: true,
-      document: newDoc,
+      document: newDocList[0],
     });
   } catch (error) {
     console.error('创建文档错误:', error);

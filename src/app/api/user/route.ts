@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDbSync } from '@/lib/db';
-import { users } from '@/lib/db/schema/sqlite';
+import {  getDbSync , getSchema } from '@/lib/db';
+
 import { getCurrentUser } from '@/lib/auth';
 import { eq, ne, and } from 'drizzle-orm';
 
@@ -26,19 +26,20 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const db = getDbSync();
+    const db = getDbSync(); const schema = getSchema();
 
     // 检查邮箱是否被其他用户占用
-    const existingEmail = await db
+    const existingEmailList = await db
       .select()
-      .from(users)
+      .from(schema.users)
       .where(
         and(
-            eq(users.email, email),
-            ne(users.id, tokenPayload.userId)
+            eq((schema.users as any).email, email),
+            ne((schema.users as any).id, tokenPayload.userId)
         )
       )
-      .get();
+      .limit(1);
+    const existingEmail = existingEmailList[0];
 
     if (existingEmail) {
       return NextResponse.json(
@@ -48,16 +49,17 @@ export async function PUT(request: NextRequest) {
     }
 
     // 检查账号是否被其他用户占用
-    const existingAccount = await db
+    const existingAccountList = await db
         .select()
-        .from(users)
+        .from(schema.users)
         .where(
             and(
-                eq(users.account, account),
-                ne(users.id, tokenPayload.userId)
+                eq((schema.users as any).account, account),
+                ne((schema.users as any).id, tokenPayload.userId)
             )
         )
-        .get();
+        .limit(1);
+    const existingAccount = existingAccountList[0];
 
     if (existingAccount) {
         return NextResponse.json(
@@ -67,7 +69,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // 更新用户
-    await db.update(users)
+    await db.update(schema.users)
       .set({
         name,
         email,
@@ -75,22 +77,23 @@ export async function PUT(request: NextRequest) {
         avatar: avatar || null,
         updatedAt: new Date(),
       })
-      .where(eq(users.id, tokenPayload.userId))
-      .run();
+      .where(eq((schema.users as any).id, tokenPayload.userId))
+      ;
 
-    const updatedUser = await db
+    const updatedUserList = await db
       .select({
-        id: users.id,
-        account: users.account,
-        email: users.email,
-        name: users.name,
-        avatar: users.avatar,
-        role: users.role,
-        status: users.status,
+        id: (schema.users as any).id,
+        account: (schema.users as any).account,
+        email: (schema.users as any).email,
+        name: (schema.users as any).name,
+        avatar: (schema.users as any).avatar,
+        role: (schema.users as any).role,
+        status: (schema.users as any).status,
       })
-      .from(users)
-      .where(eq(users.id, tokenPayload.userId))
-      .get();
+      .from(schema.users)
+      .where(eq((schema.users as any).id, tokenPayload.userId))
+      .limit(1);
+    const updatedUser = updatedUserList[0];
 
     return NextResponse.json({
       success: true,

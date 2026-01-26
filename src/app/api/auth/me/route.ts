@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getDbSync } from '@/lib/db';
-import { users } from '@/lib/db/schema/sqlite';
+import {  getDbSync, getSchema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 
 // 获取当前登录用户信息
@@ -18,18 +17,19 @@ export async function GET() {
 
     // 从数据库获取完整用户信息
     const db = getDbSync() as any;
+    const schema = getSchema();
     const userList = await db
       .select({
-        id: users.id,
-        account: users.account,
-        email: users.email,
-        name: users.name,
-        avatar: users.avatar,
-        image: users.image,
-        role: users.role,
+        id: (schema.users as any).id,
+        account: (schema.users as any).account,
+        email: (schema.users as any).email,
+        name: (schema.users as any).name,
+        avatar: (schema.users as any).avatar,
+        image: (schema.users as any).image,
+        role: (schema.users as any).role,
       })
-      .from(users)
-      .where(eq(users.id, tokenPayload.userId))
+      .from(schema.users)
+      .where(eq((schema.users as any).id, tokenPayload.userId))
       .limit(1);
     
     const user = userList[0];

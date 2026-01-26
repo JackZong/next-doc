@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuid } from 'uuid';
-import { getDbSync } from '@/lib/db';
-import { projects, projectMembers, users } from '@/lib/db/schema/sqlite';
+import {  getDbSync , getSchema } from '@/lib/db';
+
 import { getCurrentUser } from '@/lib/auth';
 import { eq, desc, or } from 'drizzle-orm';
 
@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
   try {
     const tokenPayload = await getCurrentUser();
     const db = getDbSync() as any;
+    const schema = getSchema();
 
     // 获取查询参数
     const { searchParams } = new URL(request.url);
@@ -24,82 +25,82 @@ export async function GET(request: NextRequest) {
       // 获取用户参与的项目
       projectList = await db
         .select({
-          id: projects.id,
-          name: projects.name,
-          identify: projects.identify,
-          description: projects.description,
-          cover: projects.cover,
-          logo: projects.logo,
-          favicon: projects.favicon,
-          visibility: projects.visibility,
-          ownerId: projects.ownerId,
-          ownerName: users.name,
-          createdAt: projects.createdAt,
-          updatedAt: projects.updatedAt,
+          id: (schema.projects as any).id,
+          name: (schema.projects as any).name,
+          identify: (schema.projects as any).identify,
+          description: (schema.projects as any).description,
+          cover: (schema.projects as any).cover,
+          logo: (schema.projects as any).logo,
+          favicon: (schema.projects as any).favicon,
+          visibility: (schema.projects as any).visibility,
+          ownerId: (schema.projects as any).ownerId,
+          ownerName: (schema.users as any).name,
+          createdAt: (schema.projects as any).createdAt,
+          updatedAt: (schema.projects as any).updatedAt,
         })
-        .from(projects)
-        .leftJoin(users, eq(projects.ownerId, users.id))
-        .leftJoin(projectMembers, eq(projects.id, projectMembers.projectId))
+        .from(schema.projects)
+        .leftJoin(schema.users, eq((schema.projects as any).ownerId, (schema.users as any).id))
+        .leftJoin(schema.projectMembers, eq((schema.projects as any).id, (schema.projectMembers as any).projectId))
         .where(
           or(
-            eq(projects.ownerId, tokenPayload.userId),
-            eq(projectMembers.userId, tokenPayload.userId)
+            eq((schema.projects as any).ownerId, tokenPayload.userId),
+            eq((schema.projectMembers as any).userId, tokenPayload.userId)
           )
         )
-        .orderBy(desc(projects.updatedAt))
+        .orderBy(desc((schema.projects as any).updatedAt))
         .limit(limit)
         .offset(offset);
     } else if (tokenPayload) {
       // 已登录用户可以看到公开项目和自己参与的项目
       projectList = await db
         .select({
-          id: projects.id,
-          name: projects.name,
-          identify: projects.identify,
-          description: projects.description,
-          cover: projects.cover,
-          logo: projects.logo,
-          favicon: projects.favicon,
-          visibility: projects.visibility,
-          ownerId: projects.ownerId,
-          ownerName: users.name,
-          createdAt: projects.createdAt,
-          updatedAt: projects.updatedAt,
+          id: (schema.projects as any).id,
+          name: (schema.projects as any).name,
+          identify: (schema.projects as any).identify,
+          description: (schema.projects as any).description,
+          cover: (schema.projects as any).cover,
+          logo: (schema.projects as any).logo,
+          favicon: (schema.projects as any).favicon,
+          visibility: (schema.projects as any).visibility,
+          ownerId: (schema.projects as any).ownerId,
+          ownerName: (schema.users as any).name,
+          createdAt: (schema.projects as any).createdAt,
+          updatedAt: (schema.projects as any).updatedAt,
         })
-        .from(projects)
-        .leftJoin(users, eq(projects.ownerId, users.id))
-        .leftJoin(projectMembers, eq(projects.id, projectMembers.projectId))
+        .from(schema.projects)
+        .leftJoin(schema.users, eq((schema.projects as any).ownerId, (schema.users as any).id))
+        .leftJoin(schema.projectMembers, eq((schema.projects as any).id, (schema.projectMembers as any).projectId))
         .where(
           or(
-            eq(projects.visibility, 'public'),
-            eq(projects.ownerId, tokenPayload.userId),
-            eq(projectMembers.userId, tokenPayload.userId)
+            eq((schema.projects as any).visibility, 'public'),
+            eq((schema.projects as any).ownerId, tokenPayload.userId),
+            eq((schema.projectMembers as any).userId, tokenPayload.userId)
           )
         )
-        .orderBy(desc(projects.updatedAt))
+        .orderBy(desc((schema.projects as any).updatedAt))
         .limit(limit)
         .offset(offset);
     } else {
       // 未登录用户只能看到公开项目
       projectList = await db
         .select({
-          id: projects.id,
-          name: projects.name,
-          identify: projects.identify,
-          description: projects.description,
-          cover: projects.cover,
-          logo: projects.logo,
-          favicon: projects.favicon,
-          visibility: projects.visibility,
-          ownerId: projects.ownerId,
-          ownerName: users.name,
-          createdAt: projects.createdAt,
-          updatedAt: projects.updatedAt,
+          id: (schema.projects as any).id,
+          name: (schema.projects as any).name,
+          identify: (schema.projects as any).identify,
+          description: (schema.projects as any).description,
+          cover: (schema.projects as any).cover,
+          logo: (schema.projects as any).logo,
+          favicon: (schema.projects as any).favicon,
+          visibility: (schema.projects as any).visibility,
+          ownerId: (schema.projects as any).ownerId,
+          ownerName: (schema.users as any).name,
+          createdAt: (schema.projects as any).createdAt,
+          updatedAt: (schema.projects as any).updatedAt,
         })
-        .from(projects)
-        .leftJoin(users, eq(projects.ownerId, users.id))
-        .where(eq(projects.visibility, 'public'))
-        .orderBy(desc(projects.updatedAt))
+        .from(schema.projects)
+        .leftJoin(schema.users, eq((schema.projects as any).ownerId, (schema.users as any).id))
+        .where(eq((schema.projects as any).visibility, 'public'))
+        .orderBy(desc((schema.projects as any).updatedAt))
         .limit(limit)
         .offset(offset);
     }
@@ -155,12 +156,13 @@ export async function POST(request: NextRequest) {
     }
 
     const db = getDbSync() as any;
+    const schema = getSchema();
 
     // 检查标识是否已存在
     const existingProjects = await db
       .select()
-      .from(projects)
-      .where(eq(projects.identify, identify))
+      .from(schema.projects)
+      .where(eq((schema.projects as any).identify, identify))
       .limit(1);
 
     if (existingProjects.length > 0) {
@@ -173,7 +175,7 @@ export async function POST(request: NextRequest) {
     const projectId = uuid();
 
     // 创建项目
-    await db.insert(projects).values({
+    await db.insert(schema.projects).values({
       id: projectId,
       name,
       identify,
@@ -186,7 +188,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 添加所有者为项目成员
-    await db.insert(projectMembers).values({
+    await db.insert(schema.projectMembers).values({
       id: uuid(),
       projectId,
       userId: tokenPayload.userId,
@@ -196,8 +198,8 @@ export async function POST(request: NextRequest) {
     // 获取新创建的项目
     const newProjects = await db
       .select()
-      .from(projects)
-      .where(eq(projects.id, projectId))
+      .from(schema.projects)
+      .where(eq((schema.projects as any).id, projectId))
       .limit(1);
 
     return NextResponse.json({

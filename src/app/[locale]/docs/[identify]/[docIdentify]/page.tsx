@@ -1,9 +1,6 @@
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
-import { getDb } from '@/lib/db';
-import { documents, projects, users } from '@/lib/db/schema/sqlite';
-import * as schema from '@/lib/db/schema/sqlite';
-import { LibSQLDatabase } from 'drizzle-orm/libsql';
+import { getDb, getSchema } from '@/lib/db';
 import { eq, and, or } from 'drizzle-orm';
 import { MarkdownRenderer } from '@/components/shared/markdown-renderer';
 
@@ -17,26 +14,26 @@ interface DocPageProps {
 
 export async function generateMetadata({ params }: DocPageProps): Promise<Metadata> {
   const { identify, docIdentify } = await params;
-  const db = await getDb();
-  const _db = db as unknown as LibSQLDatabase<typeof schema>;
+  const db = await getDb() as any;
+  const schema = getSchema();
 
   // 1. Get Project id first
-  const projectList = await _db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(eq(projects.identify, identify));
+  const projectList = await db
+    .select({ id: (schema.projects as any).id })
+    .from(schema.projects)
+    .where(eq((schema.projects as any).identify, identify));
   const project = projectList[0];
 
   if (!project) return { title: 'Document Not Found' };
 
   // 2. Get Document title
-  const docList = await _db
-    .select({ title: documents.title })
-    .from(documents)
+  const docList = await db
+    .select({ title: (schema.documents as any).title })
+    .from(schema.documents)
     .where(
       and(
-        eq(documents.projectId, project.id),
-        or(eq(documents.identify, docIdentify), eq(documents.id, docIdentify))
+        eq((schema.documents as any).projectId, project.id),
+        or(eq((schema.documents as any).identify, docIdentify), eq((schema.documents as any).id, docIdentify))
       )
     );
   
@@ -51,35 +48,34 @@ export async function generateMetadata({ params }: DocPageProps): Promise<Metada
 
 export default async function DocPage({ params }: DocPageProps) {
   const { identify, docIdentify } = await params;
-  const db = await getDb();
-  const _db = db as unknown as LibSQLDatabase<typeof schema>;
+  const db = await getDb() as any;
+  const schema = getSchema();
 
   // 1. Get Project
-  const projectList = await _db
-    .select({ id: projects.id, editorType: projects.editorType })
-    .from(projects)
-    .where(eq(projects.identify, identify));
+  const projectList = await db
+    .select({ id: (schema.projects as any).id, editorType: (schema.projects as any).editorType })
+    .from(schema.projects)
+    .where(eq((schema.projects as any).identify, identify));
   const project = projectList[0];
 
   if (!project) notFound();
 
   // 2. Get Document
-  const docList = await _db
+  const docList = await db
     .select({
-      id: documents.id,
-      title: documents.title,
-      content: documents.content,
-      updatedAt: documents.updatedAt,
-      viewCount: documents.viewCount,
-      authorName: users.name,
-      authorAvatar: users.avatar,
+      id: (schema.documents as any).id,
+      title: (schema.documents as any).title,
+      content: (schema.documents as any).content,
+      updatedAt: (schema.documents as any).updatedAt,
+      viewCount: (schema.documents as any).viewCount,
+      role: (schema.users as any).role,
     })
-    .from(documents)
-    .leftJoin(users, eq(documents.authorId, users.id))
+    .from(schema.documents)
+    .leftJoin(schema.users, eq((schema.documents as any).authorId, (schema.users as any).id))
     .where(
       and(
-        eq(documents.projectId, project.id),
-        or(eq(documents.identify, docIdentify), eq(documents.id, docIdentify))
+        eq((schema.documents as any).projectId, project.id),
+        or(eq((schema.documents as any).identify, docIdentify), eq((schema.documents as any).id, docIdentify))
       )
     );
     

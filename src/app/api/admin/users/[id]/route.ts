@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getDbSync } from '@/lib/db';
-import { users } from '@/lib/db/schema/sqlite';
+import {  getDbSync , getSchema } from '@/lib/db';
+
 import { eq } from 'drizzle-orm';
 
 // 更新用户信息（角色、状态等）
@@ -24,14 +24,15 @@ export async function PATCH(
     const body = await request.json();
     const { role, status } = body;
 
-    const db = getDbSync();
+    const db = getDbSync(); const schema = getSchema();
 
     // 检查用户是否存在
-    const user = await db
+    const userList = await db
       .select()
-      .from(users)
-      .where(eq(users.id, id))
-      .get();
+      .from(schema.users)
+      .where(eq((schema.users as any).id, id))
+      .limit(1);
+    const user = userList[0];
 
     if (!user) {
       return NextResponse.json(
@@ -57,10 +58,10 @@ export async function PATCH(
     if (status) updateData.status = status;
 
     await db
-      .update(users)
+      .update(schema.users)
       .set(updateData)
-      .where(eq(users.id, id))
-      .run();
+      .where(eq((schema.users as any).id, id))
+      ;
 
     return NextResponse.json({
       success: true,
@@ -100,14 +101,15 @@ export async function DELETE(
       );
     }
 
-    const db = getDbSync();
+    const db = getDbSync(); const schema = getSchema();
 
     // 检查用户是否存在
-    const user = await db
+    const userList = await db
       .select()
-      .from(users)
-      .where(eq(users.id, id))
-      .get();
+      .from(schema.users)
+      .where(eq((schema.users as any).id, id))
+      .limit(1);
+    const user = userList[0];
 
     if (!user) {
       return NextResponse.json(
@@ -118,9 +120,9 @@ export async function DELETE(
 
     // 删除用户
     await db
-      .delete(users)
-      .where(eq(users.id, id))
-      .run();
+      .delete(schema.users)
+      .where(eq((schema.users as any).id, id))
+      ;
 
     return NextResponse.json({
       success: true,

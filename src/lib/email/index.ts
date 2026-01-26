@@ -1,17 +1,17 @@
 import nodemailer from 'nodemailer';
-import { getDbSync } from '@/lib/db';
-import { systemConfig } from '@/lib/db/schema/sqlite';
+import { getDbSync, getSchema } from '@/lib/db';
 import { CONFIG_KEYS } from '@/lib/constants/config';
 
 /**
  * 从数据库获取 SMTP 配置
  */
 async function getSmtpConfig() {
-  const db = getDbSync();
-  const configs = await (db as any).select().from(systemConfig);
+  const db = getDbSync() as any;
+  const schema = getSchema();
+  const configs = await db.select().from(schema.systemConfig);
   
   const configMap: Record<string, string> = {};
-  configs.forEach((c) => {
+  configs.forEach((c: any) => {
     configMap[c.key] = c.value || '';
   });
 

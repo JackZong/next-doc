@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getDbSync } from '@/lib/db';
-import { projects, projectMembers, invitations, users } from '@/lib/db/schema/sqlite';
+import {  getDbSync , getSchema } from '@/lib/db';
+
 import { eq, and } from 'drizzle-orm';
 import { randomUUID, randomBytes } from 'crypto';
 import { sendEmail } from '@/lib/email';
@@ -21,14 +21,15 @@ export async function POST(
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
-    const db = getDbSync();
+    const db = getDbSync(); const schema = getSchema();
 
     // 获取当前用户的完整信息（包括姓名）
-    const currentUser = await db
+    const currentUserList = await db
       .select()
-      .from(users)
-      .where(eq(users.id, currentUserPayload.userId))
-      .get();
+      .from(schema.users)
+      .where(eq((schema.users as any).id, currentUserPayload.userId))
+      .limit(1);
+    const currentUser = currentUserList[0];
 
     if (!currentUser) {
       return NextResponse.json({ error: '用户不存在' }, { status: 404 });
@@ -39,35 +40,39 @@ export async function POST(
     const locale = cookieStore.get('NEXT_LOCALE')?.value || 'en';
 
     // 获取项目并检查权限
-    const project = await db
+    const projectList = await db
       .select()
-      .from(projects)
-      .where(eq(projects.identify, identify))
-      .get();
+      .from(schema.projects)
+      .where(eq((schema.projects as any).identify, identify))
+      .limit(1);
+    const project = projectList[0];
 
     if (!project) {
       return NextResponse.json({ error: '项目不存在' }, { status: 404 });
     }
 
     // 检查当前用户是否有权邀请（只有 owner 可以邀请，或者管理员）
-    const membership = await db
+    const membershipList = await db
       .select()
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, project.id), eq(projectMembers.userId, currentUser.id)))
-      .get();
+      .from(schema.projectMembers)
+      .where(and(eq((schema.projectMembers as any).projectId, project.id), eq((schema.projectMembers as any).userId, currentUser.id)))
+      .limit(1);
+    const membership = membershipList[0];
 
     if (currentUser.role !== 'admin' && (!membership || membership.role !== 'owner')) {
       return NextResponse.json({ error: '权限不足，只有所有者可以邀请成员' }, { status: 403 });
     }
 
     // 检查用户是否已经是成员
-    const targetUser = await db.select().from(users).where(eq(users.email, email)).get();
+    const targetUserList = await db.select().from(schema.users).where(eq((schema.users as any).email, email)).limit(1);
+    const targetUser = targetUserList[0];
     if (targetUser) {
-      const existingMember = await db
+      const existingMemberList = await db
         .select()
-        .from(projectMembers)
-        .where(and(eq(projectMembers.projectId, project.id), eq(projectMembers.userId, targetUser.id)))
-        .get();
+        .from(schema.projectMembers)
+        .where(and(eq((schema.projectMembers as any).projectId, project.id), eq((schema.projectMembers as any).userId, targetUser.id)))
+        .limit(1);
+    const existingMember = existingMemberList[0];
       
       if (existingMember) {
         return NextResponse.json({ error: '该用户已经是项目成员' }, { status: 400 });
@@ -78,7 +83,7 @@ export async function POST(
     const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 天过期
 
-    await db.insert(invitations).values({
+    await db.insert(schema.invitations).values({
       id: randomUUID(),
       projectId: project.id,
       email,
@@ -86,7 +91,7 @@ export async function POST(
       token,
       inviterId: currentUser.id,
       expiresAt,
-    }).run();
+    });
 
     // 发送邀请邮件
     const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/invite/${token}`;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getDbSync } from '@/lib/db';
-import { projects } from '@/lib/db/schema/sqlite';
+import {  getDbSync , getSchema } from '@/lib/db';
+
 import { eq } from 'drizzle-orm';
 
 // 删除项目
@@ -21,14 +21,15 @@ export async function DELETE(
       );
     }
 
-    const db = getDbSync();
+    const db = getDbSync(); const schema = getSchema();
 
     // 检查项目是否存在
-    const project = await db
+    const projectList = await db
       .select()
-      .from(projects)
-      .where(eq(projects.id, id))
-      .get();
+      .from(schema.projects)
+      .where(eq((schema.projects as any).id, id))
+      .limit(1);
+    const project = projectList[0];
 
     if (!project) {
       return NextResponse.json(
@@ -39,9 +40,9 @@ export async function DELETE(
 
     // 删除项目（级联删除会处理相关数据）
     await db
-      .delete(projects)
-      .where(eq(projects.id, id))
-      .run();
+      .delete(schema.projects)
+      .where(eq((schema.projects as any).id, id))
+      ;
 
     return NextResponse.json({
       success: true,

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getDbSync } from '@/lib/db';
-import { attachments } from '@/lib/db/schema/sqlite';
+import {  getDbSync, getSchema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { unlink } from 'fs/promises';
 import { join } from 'path';
@@ -23,14 +22,17 @@ export async function DELETE(
       );
     }
 
-    const db = getDbSync();
+    const db = getDbSync() as any;
+    const schema = getSchema();
 
     // 检查附件是否存在
-    const attachment = await db
+    const attachmentList = await db
       .select()
-      .from(attachments)
-      .where(eq(attachments.id, id))
-      .get();
+      .from(schema.attachments)
+      .where(eq((schema.attachments as any).id, id))
+      .limit(1);
+      
+    const attachment = attachmentList[0];
 
     if (!attachment) {
       return NextResponse.json(
@@ -50,9 +52,8 @@ export async function DELETE(
 
     // 删除数据库记录
     await db
-      .delete(attachments)
-      .where(eq(attachments.id, id))
-      .run();
+      .delete(schema.attachments)
+      .where(eq((schema.attachments as any).id, id));
 
     return NextResponse.json({
       success: true,

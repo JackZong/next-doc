@@ -1,10 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { Metadata } from 'next';
 import { cookies } from 'next/headers';
-import { getDb } from '@/lib/db';
-import { projects, documents, projectMembers } from '@/lib/db/schema/sqlite';
-import * as schema from '@/lib/db/schema/sqlite';
-import { LibSQLDatabase } from 'drizzle-orm/libsql';
+import { getDbSync, getSchema } from '@/lib/db';
 import { eq, asc, and } from 'drizzle-orm';
 import { DocsHeader } from '@/components/docs/docs-header';
 import { DocsLayoutWrapper } from '@/components/docs/docs-layout-wrapper';
@@ -18,13 +15,13 @@ interface DocsLayoutProps {
 
 export async function generateMetadata({ params }: DocsLayoutProps): Promise<Metadata> {
   const { identify } = await params;
-  const db = await getDb();
-  const _db = db as unknown as LibSQLDatabase<typeof schema>;
+  const db = getDbSync() as any;
+  const schema = getSchema();
 
-  const projectList = await _db
-    .select({ favicon: projects.favicon })
-    .from(projects)
-    .where(eq(projects.identify, identify));
+  const projectList = await db
+    .select({ favicon: (schema.projects as any).favicon })
+    .from(schema.projects)
+    .where(eq((schema.projects as any).identify, identify));
     
   const project = projectList[0];
 
@@ -41,15 +38,13 @@ export async function generateMetadata({ params }: DocsLayoutProps): Promise<Met
 
 export default async function DocsLayout({ children, params }: DocsLayoutProps) {
   const { identify } = await params;
-  const db = await getDb();
-  
-  // Cast db to LibSQLDatabase to match the imported schema
-  const _db = db as unknown as LibSQLDatabase<typeof schema>;
+  const db = getDbSync() as any;
+  const schema = getSchema();
 
-  const projectList = await _db
+  const projectList = await db
     .select()
-    .from(projects)
-    .where(eq(projects.identify, identify));
+    .from(schema.projects)
+    .where(eq((schema.projects as any).identify, identify));
     
   const project = projectList[0];
 
@@ -84,16 +79,17 @@ export default async function DocsLayout({ children, params }: DocsLayoutProps) 
         hasAccess = true;
       } else {
         // Check if member
-        const member = await _db
+        const memberList = await db
           .select()
-          .from(projectMembers)
+          .from(schema.projectMembers)
           .where(
             and(
-              eq(projectMembers.projectId, project.id),
-              eq(projectMembers.userId, user.userId)
+              eq((schema.projectMembers as any).projectId, project.id),
+              eq((schema.projectMembers as any).userId, user.userId)
             )
           )
-          .get();
+          .limit(1);
+        const member = memberList[0];
         if (member) {
           hasAccess = true;
         }
@@ -115,16 +111,16 @@ export default async function DocsLayout({ children, params }: DocsLayoutProps) 
     notFound();
   }
 
-  const docsList = await _db
+  const docsList = await db
     .select()
-    .from(documents)
-    .where(eq(documents.projectId, project.id))
-    .orderBy(asc(documents.sort), asc(documents.createdAt));
+    .from(schema.documents)
+    .where(eq((schema.documents as any).projectId, project.id))
+    .orderBy(asc((schema.documents as any).sort), asc((schema.documents as any).createdAt));
 
   // Build tree
-  type Doc = typeof docsList[number];
+  type Doc = any;
   const buildTree = (parentId: string | null): DocumentTreeNode[] => {
-    return docsList
+    return (docsList as Doc[])
       .filter((doc: Doc) => doc.parentId === parentId)
       .map((doc: Doc) => ({
         ...doc,

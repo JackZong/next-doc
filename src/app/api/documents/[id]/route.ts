@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuid } from 'uuid';
-import { getDbSync } from '@/lib/db';
-import { documents, projects, projectMembers, documentHistory, users } from '@/lib/db/schema/sqlite';
+import {  getDbSync , getSchema } from '@/lib/db';
+
 import { getCurrentUser } from '@/lib/auth';
 import { eq, and, desc, count } from 'drizzle-orm';
 
@@ -12,30 +12,31 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const db = getDbSync();
+    const db = getDbSync(); const schema = getSchema();
 
     // 获取文档
-    const doc = await db
+    const docList = await db
       .select({
-        id: documents.id,
-        projectId: documents.projectId,
-        parentId: documents.parentId,
-        title: documents.title,
-        identify: documents.identify,
-        content: documents.content,
-        contentType: documents.contentType,
-        sort: documents.sort,
-        status: documents.status,
-        authorId: documents.authorId,
-        authorName: users.name,
-        viewCount: documents.viewCount,
-        createdAt: documents.createdAt,
-        updatedAt: documents.updatedAt,
+        id: (schema.documents as any).id,
+        projectId: (schema.documents as any).projectId,
+        parentId: (schema.documents as any).parentId,
+        title: (schema.documents as any).title,
+        identify: (schema.documents as any).identify,
+        content: (schema.documents as any).content,
+        contentType: (schema.documents as any).contentType,
+        sort: (schema.documents as any).sort,
+        status: (schema.documents as any).status,
+        authorId: (schema.documents as any).authorId,
+        authorName: (schema.users as any).name,
+        viewCount: (schema.documents as any).viewCount,
+        createdAt: (schema.documents as any).createdAt,
+        updatedAt: (schema.documents as any).updatedAt,
       })
-      .from(documents)
-      .leftJoin(users, eq(documents.authorId, users.id))
-      .where(eq(documents.id, id))
-      .get();
+      .from(schema.documents)
+      .leftJoin(schema.users, eq((schema.documents as any).authorId, (schema.users as any).id))
+      .where(eq((schema.documents as any).id, id))
+      .limit(1);
+    const doc = docList[0];
 
     if (!doc) {
       return NextResponse.json(
@@ -45,11 +46,12 @@ export async function GET(
     }
 
     // 获取项目信息
-    const project = await db
+    const projectList = await db
       .select()
-      .from(projects)
-      .where(eq(projects.id, doc.projectId))
-      .get();
+      .from(schema.projects)
+      .where(eq((schema.projects as any).id, doc.projectId))
+      .limit(1);
+    const project = projectList[0];
 
     if (!project) {
       return NextResponse.json(
@@ -68,16 +70,17 @@ export async function GET(
         );
       }
 
-      const membership = await db
+      const membershipList = await db
         .select()
-        .from(projectMembers)
+        .from(schema.projectMembers)
         .where(
           and(
-            eq(projectMembers.projectId, project.id),
-            eq(projectMembers.userId, tokenPayload.userId)
+            eq((schema.projectMembers as any).projectId, project.id),
+            eq((schema.projectMembers as any).userId, tokenPayload.userId)
           )
         )
-        .get();
+        .limit(1);
+    const membership = membershipList[0];
 
       if (!membership && project.ownerId !== tokenPayload.userId) {
         return NextResponse.json(
@@ -88,10 +91,10 @@ export async function GET(
     }
 
     // 更新浏览次数
-    await db.update(documents)
+    await db.update(schema.documents)
       .set({ viewCount: doc.viewCount + 1 })
-      .where(eq(documents.id, id))
-      .run();
+      .where(eq((schema.documents as any).id, id))
+      ;
 
     return NextResponse.json({
       success: true,
@@ -128,14 +131,15 @@ export async function PUT(
       );
     }
 
-    const db = getDbSync();
+    const db = getDbSync(); const schema = getSchema();
 
     // 获取文档
-    const doc = await db
+    const docList = await db
       .select()
-      .from(documents)
-      .where(eq(documents.id, id))
-      .get();
+      .from(schema.documents)
+      .where(eq((schema.documents as any).id, id))
+      .limit(1);
+    const doc = docList[0];
 
     if (!doc) {
       return NextResponse.json(
@@ -145,11 +149,12 @@ export async function PUT(
     }
 
     // 获取项目
-    const project = await db
+    const projectList = await db
       .select()
-      .from(projects)
-      .where(eq(projects.id, doc.projectId))
-      .get();
+      .from(schema.projects)
+      .where(eq((schema.projects as any).id, doc.projectId))
+      .limit(1);
+    const project = projectList[0];
 
     if (!project) {
       return NextResponse.json(
@@ -159,16 +164,17 @@ export async function PUT(
     }
 
     // 权限检查
-    const membership = await db
+    const membershipList = await db
       .select()
-      .from(projectMembers)
+      .from(schema.projectMembers)
       .where(
         and(
-          eq(projectMembers.projectId, project.id),
-          eq(projectMembers.userId, tokenPayload.userId)
+          eq((schema.projectMembers as any).projectId, project.id),
+          eq((schema.projectMembers as any).userId, tokenPayload.userId)
         )
       )
-      .get();
+      .limit(1);
+    const membership = membershipList[0];
 
     const canEdit = 
       project.ownerId === tokenPayload.userId ||
@@ -188,23 +194,24 @@ export async function PUT(
 
     // 保存历史版本
     if (content && content !== doc.content) {
-      const historyCount = await db
+      const historyCountList = await db
         .select({ count: count() })
-        .from(documentHistory)
-        .where(eq(documentHistory.documentId, id))
-        .get();
+        .from(schema.documentHistory)
+        .where(eq((schema.documentHistory as any).documentId, id))
+        .limit(1);
+    const historyCount = historyCountList[0];
 
-      await db.insert(documentHistory).values({
+      await db.insert(schema.documentHistory).values({
         id: uuid(),
         documentId: id,
         content: doc.content,
         version: (historyCount?.count || 0) + 1,
         authorId: tokenPayload.userId,
-      }).run();
+      });
     }
 
     // 更新文档
-    await db.update(documents)
+    await db.update(schema.documents)
       .set({
         title: title !== undefined ? title : doc.title,
         content: content !== undefined ? content : doc.content,
@@ -214,14 +221,15 @@ export async function PUT(
         sort: sort !== undefined ? sort : doc.sort,
         updatedAt: new Date(),
       })
-      .where(eq(documents.id, id))
-      .run();
+      .where(eq((schema.documents as any).id, id))
+      ;
 
-    const updatedDoc = await db
+    const updatedDocList = await db
       .select()
-      .from(documents)
-      .where(eq(documents.id, id))
-      .get();
+      .from(schema.documents)
+      .where(eq((schema.documents as any).id, id))
+      .limit(1);
+    const updatedDoc = updatedDocList[0];
 
     return NextResponse.json({
       success: true,
@@ -252,14 +260,15 @@ export async function DELETE(
       );
     }
 
-    const db = getDbSync();
+    const db = getDbSync(); const schema = getSchema();
 
     // 获取文档
-    const doc = await db
+    const docList = await db
       .select()
-      .from(documents)
-      .where(eq(documents.id, id))
-      .get();
+      .from(schema.documents)
+      .where(eq((schema.documents as any).id, id))
+      .limit(1);
+    const doc = docList[0];
 
     if (!doc) {
       return NextResponse.json(
@@ -269,11 +278,12 @@ export async function DELETE(
     }
 
     // 获取项目
-    const project = await db
+    const projectList = await db
       .select()
-      .from(projects)
-      .where(eq(projects.id, doc.projectId))
-      .get();
+      .from(schema.projects)
+      .where(eq((schema.projects as any).id, doc.projectId))
+      .limit(1);
+    const project = projectList[0];
 
     if (!project) {
       return NextResponse.json(
@@ -283,16 +293,17 @@ export async function DELETE(
     }
 
     // 权限检查
-    const membership = await db
+    const membershipList = await db
       .select()
-      .from(projectMembers)
+      .from(schema.projectMembers)
       .where(
         and(
-          eq(projectMembers.projectId, project.id),
-          eq(projectMembers.userId, tokenPayload.userId)
+          eq((schema.projectMembers as any).projectId, project.id),
+          eq((schema.projectMembers as any).userId, tokenPayload.userId)
         )
       )
-      .get();
+      .limit(1);
+    const membership = membershipList[0];
 
     const canDelete = 
       project.ownerId === tokenPayload.userId ||
@@ -308,7 +319,7 @@ export async function DELETE(
     }
 
     // 删除文档（级联删除子文档和历史）
-    await db.delete(documents).where(eq(documents.id, id)).run();
+    await db.delete(schema.documents).where(eq((schema.documents as any).id, id));
 
     return NextResponse.json({
       success: true,

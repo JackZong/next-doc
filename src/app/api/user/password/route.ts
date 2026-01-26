@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDbSync } from '@/lib/db';
-import { users } from '@/lib/db/schema/sqlite';
+import {  getDbSync , getSchema } from '@/lib/db';
+
 import { getCurrentUser } from '@/lib/auth';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
@@ -34,17 +34,18 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const db = getDbSync();
+    const db = getDbSync(); const schema = getSchema();
 
     // 获取当前用户密码
-    const user = await db
+    const userList = await db
       .select({
-        id: users.id,
-        password: users.password,
+        id: (schema.users as any).id,
+        password: (schema.users as any).password,
       })
-      .from(users)
-      .where(eq(users.id, tokenPayload.userId))
-      .get();
+      .from(schema.users)
+      .where(eq((schema.users as any).id, tokenPayload.userId))
+      .limit(1);
+    const user = userList[0];
 
     if (!user) {
       return NextResponse.json(
@@ -74,13 +75,13 @@ export async function PUT(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // 更新密码
-    await db.update(users)
+    await db.update(schema.users)
       .set({
         password: hashedPassword,
         updatedAt: new Date(),
       })
-      .where(eq(users.id, tokenPayload.userId))
-      .run();
+      .where(eq((schema.users as any).id, tokenPayload.userId))
+      ;
 
     return NextResponse.json({
       success: true,

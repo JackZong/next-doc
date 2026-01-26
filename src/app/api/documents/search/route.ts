@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb, getDatabaseType, sqliteSchema } from '@/lib/db';
-import { documents } from '@/lib/db/schema/sqlite';
+import { getDbSync, getSchema } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { like, or } from 'drizzle-orm';
-import { LibSQLDatabase } from 'drizzle-orm/libsql';
 
 // 搜索文档
 export async function GET(request: NextRequest) {
@@ -23,29 +21,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '请先登录' }, { status: 401 });
     }
 
-    const db = await getDb();
-    const dbType = getDatabaseType();
+    const db = getDbSync() as any;
+    const schema = getSchema();
 
-    let results: { id: string; title: string; identify: string; projectId: string }[] = [];
-
-    if (dbType === 'sqlite') {
-      const sqliteDb = db as LibSQLDatabase<typeof sqliteSchema>;
-      results = await sqliteDb
-        .select({
-          id: documents.id,
-          title: documents.title,
-          identify: documents.identify,
-          projectId: documents.projectId,
-        })
-        .from(documents)
-        .where(
-          or(
-            like(documents.title, `%${keyword}%`),
-            like(documents.content, `%${keyword}%`)
-          )
+    const results = await db
+      .select({
+        id: (schema.documents as any).id,
+        title: (schema.documents as any).title,
+        identify: (schema.documents as any).identify,
+        projectId: (schema.documents as any).projectId,
+      })
+      .from(schema.documents)
+      .where(
+        or(
+          like((schema.documents as any).title, `%${keyword}%`),
+          like((schema.documents as any).content, `%${keyword}%`)
         )
-        .all();
-    }
+      );
 
     return NextResponse.json({
       success: true,

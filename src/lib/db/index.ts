@@ -44,7 +44,7 @@ function createMysqlConnection() {
 }
 
 // 数据库定义类型
-export type AppDb = LibSQLDatabase<typeof sqliteSchema> | PostgresJsDatabase<typeof postgresSchema> | MySql2Database<typeof mysqlSchema>;
+export type AppDb = any;
 
 // 数据库实例缓存
 let dbInstance: AppDb | null = null;

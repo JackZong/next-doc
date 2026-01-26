@@ -1,6 +1,5 @@
 import { Metadata } from 'next';
-import { getDbSync } from '@/lib/db';
-import { invitations, projectMembers, projects, users } from '@/lib/db/schema/sqlite';
+import {  getDbSync, getSchema } from '@/lib/db';
 import { eq, and, gt } from 'drizzle-orm';
 import { getCurrentUser } from '@/lib/auth';
 import { redirect } from 'next/navigation';
@@ -20,12 +19,15 @@ export default async function InvitePage({ params }: PageProps) {
   const { token } = await params;
   const user = await getCurrentUser();
   
-  const db = getDbSync();
-  const invitation = await db
+  const db = getDbSync() as any;
+  const schema = getSchema();
+  const invitationList = await db
     .select()
-    .from(invitations)
-    .where(and(eq(invitations.token, token), gt(invitations.expiresAt, new Date())))
-    .get();
+    .from(schema.invitations)
+    .where(and(eq((schema.invitations as any).token, token), gt((schema.invitations as any).expiresAt, new Date())))
+    .limit(1);
+
+  const invitation = invitationList[0];
 
   if (!invitation) {
     return (
@@ -44,30 +46,36 @@ export default async function InvitePage({ params }: PageProps) {
     );
   }
 
-  const project = await db
+  const projectList = await db
     .select()
-    .from(projects)
-    .where(eq(projects.id, invitation.projectId))
-    .get();
+    .from(schema.projects)
+    .where(eq((schema.projects as any).id, invitation.projectId))
+    .limit(1);
+    
+  const project = projectList[0];
 
   if (!user) {
     // 检查被邀请的邮箱是否已注册
-    const existingUser = await db
+    const existingUserList = await db
       .select()
-      .from(users)
-      .where(eq(users.email, invitation.email))
-      .get();
+      .from(schema.users)
+      .where(eq((schema.users as any).email, invitation.email))
+      .limit(1);
+    
+    const existingUser = existingUserList[0];
 
     const baseUrl = existingUser ? '/login' : '/register';
     redirect(`${baseUrl}?redirect=/invite/${token}&email=${encodeURIComponent(invitation.email)}`);
   }
 
   // 检查是否已经是成员
-  const membership = await db
+  const membershipList = await db
     .select()
-    .from(projectMembers)
-    .where(and(eq(projectMembers.projectId, invitation.projectId), eq(projectMembers.userId, user.userId)))
-    .get();
+    .from(schema.projectMembers)
+    .where(and(eq((schema.projectMembers as any).projectId, invitation.projectId), eq((schema.projectMembers as any).userId, user.userId)))
+    .limit(1);
+
+  const membership = membershipList[0];
 
   if (membership) {
     redirect(`/docs/${project?.identify}`);

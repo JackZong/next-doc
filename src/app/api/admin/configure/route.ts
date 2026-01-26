@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getDbSync } from '@/lib/db';
-import { systemConfig } from '@/lib/db/schema/sqlite';
+import {  getDbSync , getSchema } from '@/lib/db';
+
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { CONFIG_KEYS } from '@/lib/constants/config';
@@ -19,17 +19,16 @@ export async function GET() {
       );
     }
 
-    const db = getDbSync();
+    const db = getDbSync(); const schema = getSchema();
 
     // 获取所有配置
     const configs = await db
       .select()
-      .from(systemConfig)
-      .all();
+      .from(schema.systemConfig);
 
     // 转换为键值对
     const configMap: Record<string, string> = {};
-    configs.forEach((config) => {
+    configs.forEach((config: any) => {
       configMap[config.key] = config.value || '';
     });
 
@@ -92,7 +91,7 @@ export async function POST(request: NextRequest) {
       smtpFrom
     } = body;
 
-    const db = getDbSync();
+    const db = getDbSync(); const schema = getSchema();
 
     // 保存或更新配置
     const configsToSave = [
@@ -113,26 +112,27 @@ export async function POST(request: NextRequest) {
 
     for (const config of configsToSave) {
       // 检查配置是否存在
-      const existing = await db
+      const existingList = await db
         .select()
-        .from(systemConfig)
-        .where(eq(systemConfig.key, config.key))
-        .get();
+        .from(schema.systemConfig)
+        .where(eq((schema.systemConfig as any).key, config.key))
+        .limit(1);
+      
+      const existing = existingList[0];
 
       if (existing) {
         // 更新
         await db
-          .update(systemConfig)
+          .update(schema.systemConfig)
           .set({
             value: config.value,
             updatedAt: new Date(),
           })
-          .where(eq(systemConfig.key, config.key))
-          .run();
+          .where(eq((schema.systemConfig as any).key, config.key));
       } else {
         // 插入
         await db
-          .insert(systemConfig)
+          .insert(schema.systemConfig)
           .values({
             id: randomUUID(),
             key: config.key,
@@ -140,8 +140,7 @@ export async function POST(request: NextRequest) {
             description: config.description,
             createdAt: new Date(),
             updatedAt: new Date(),
-          })
-          .run();
+          });
       }
     }
 

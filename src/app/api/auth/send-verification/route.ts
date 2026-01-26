@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDbSync } from '@/lib/db';
-import { users, emailVerifications } from '@/lib/db/schema/sqlite';
+import {  getDbSync , getSchema } from '@/lib/db';
+
 import { sendEmail } from '@/lib/email';
 import { getVerificationEmailTemplate } from '@/lib/email/templates';
 import { eq } from 'drizzle-orm';
@@ -14,14 +14,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '无效邮箱地址' }, { status: 400 });
     }
 
-    const db = getDbSync();
+    const db = getDbSync(); const schema = getSchema();
 
     // 检查邮箱是否已注册
-    const existingUser = await db
+    const existingUserList = await db
       .select()
-      .from(users)
-      .where(eq(users.email, email))
-      .get();
+      .from(schema.users)
+      .where(eq((schema.users as any).email, email))
+      .limit(1);
+    const existingUser = existingUserList[0];
 
     if (existingUser) {
       return NextResponse.json({ error: '该邮箱已被注册' }, { status: 400 });
@@ -32,12 +33,12 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 分钟后过期
 
     // 保存验证码到数据库
-    await db.insert(emailVerifications).values({
+    await db.insert(schema.emailVerifications).values({
       id: randomUUID(),
       email,
       code,
       expiresAt,
-    }).run();
+    });
 
     // 发送邮件
     const template = getVerificationEmailTemplate(code, email.split('@')[0], 'zh-CN');

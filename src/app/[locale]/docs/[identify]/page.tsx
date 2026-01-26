@@ -1,6 +1,5 @@
 import { redirect, notFound } from 'next/navigation';
-import { getDb } from '@/lib/db';
-import { documents, projects } from '@/lib/db/schema/sqlite';
+import { getDb, getSchema } from '@/lib/db';
 import { eq, asc } from 'drizzle-orm';
 
 interface DocsIndexParams {
@@ -9,22 +8,22 @@ interface DocsIndexParams {
 
 export default async function DocsIndexPage({ params }: DocsIndexParams) {
   const { identify } = await params;
-  const db = await getDb();
-  const _db = db as any;
+  const db = (await getDb()) as any;
+  const schema = getSchema();
 
-  const projectList = await _db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(eq(projects.identify, identify));
+  const projectList = await db
+    .select({ id: (schema.projects as any).id })
+    .from(schema.projects)
+    .where(eq((schema.projects as any).identify, identify));
   const project = projectList[0];
 
   if (!project) notFound();
 
-  const firstDocList = await _db
-    .select({ identify: documents.identify, id: documents.id })
-    .from(documents)
-    .where(eq(documents.projectId, project.id))
-    .orderBy(asc(documents.sort), asc(documents.createdAt))
+  const firstDocList = await db
+    .select({ identify: (schema.documents as any).identify, id: (schema.documents as any).id })
+    .from(schema.documents)
+    .where(eq((schema.documents as any).projectId, project.id))
+    .orderBy(asc((schema.documents as any).sort), asc((schema.documents as any).createdAt))
     .limit(1);
 
   const firstDoc = firstDocList[0];
