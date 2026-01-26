@@ -3,16 +3,19 @@ module.exports = {
     {
       name: 'next-doc',
       cwd: './',
-      script: 'node_modules/next/dist/bin/next',
+      script: './node_modules/next/dist/bin/next',
       args: 'start',
       instances: 'max',
       exec_mode: 'cluster',
+      kill_timeout: 3000,
+      wait_ready: true,
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
       },
       env_production: {
         NODE_ENV: 'production',
+        PORT: 3000,
       },
       // 日志配置
       error_file: './logs/error.log',
