@@ -3,11 +3,11 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-const dbType = (process.env.DB_TYPE || 'sqlite') as 'sqlite' | 'mysql' | 'postgresql';
+const dbType = (process.env.DB_TYPE || 'sqlite') as 'sqlite' | 'mysql' | 'postgres';
 
 const getConfigs = () => {
   switch (dbType) {
-    case 'postgresql':
+    case 'postgres':
       return {
         dialect: 'postgresql' as const,
         schema: './src/lib/db/schema/postgres.ts',

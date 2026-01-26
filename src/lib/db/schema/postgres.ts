@@ -4,7 +4,6 @@ import {
   timestamp, 
   integer,
   bigint,
-  uuid,
   boolean
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
@@ -13,7 +12,7 @@ import { relations } from 'drizzle-orm';
 // 用户表
 // ================================
 export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: text('id').primaryKey(),
   account: text('account').notNull().unique(),
   email: text('email').notNull().unique(),
   password: text('password').notNull(),
@@ -33,7 +32,7 @@ export const users = pgTable('users', {
 // 项目表
 // ================================
 export const projects = pgTable('projects', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: text('id').primaryKey(),
   name: text('name').notNull(),
   // 项目标识（URL友好）
   identify: text('identify').notNull().unique(),
@@ -49,7 +48,7 @@ export const projects = pgTable('projects', {
   // 编辑器类型: markdown(Markdown编辑器), richtext(富文本编辑器)
   editorType: text('editor_type', { enum: ['markdown', 'richtext'] }).notNull().default('markdown'),
   sort: integer('sort').notNull().default(0),
-  ownerId: uuid('owner_id').notNull().references(() => users.id),
+  ownerId: text('owner_id').notNull().references(() => users.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -58,9 +57,9 @@ export const projects = pgTable('projects', {
 // 项目成员表
 // ================================
 export const projectMembers = pgTable('project_members', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   // 角色: owner(所有者), editor(编辑者), viewer(查看者)
   role: text('role', { enum: ['owner', 'editor', 'viewer'] }).notNull().default('viewer'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -70,9 +69,9 @@ export const projectMembers = pgTable('project_members', {
 // 文档表
 // ================================
 export const documents = pgTable('documents', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
-  parentId: uuid('parent_id'),
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  parentId: text('parent_id'),
   title: text('title').notNull(),
   // 文档标识
   identify: text('identify').notNull(),
@@ -83,7 +82,7 @@ export const documents = pgTable('documents', {
   sort: integer('sort').notNull().default(0),
   // 状态: draft(草稿), published(已发布)
   status: text('status', { enum: ['draft', 'published'] }).notNull().default('draft'),
-  authorId: uuid('author_id').notNull().references(() => users.id),
+  authorId: text('author_id').notNull().references(() => users.id),
   // 阅读次数
   viewCount: integer('view_count').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -94,12 +93,12 @@ export const documents = pgTable('documents', {
 // 文档历史表
 // ================================
 export const documentHistory = pgTable('document_history', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  documentId: uuid('document_id').notNull().references(() => documents.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  documentId: text('document_id').notNull().references(() => documents.id, { onDelete: 'cascade' }),
   content: text('content'),
   changeLog: text('change_log'),
   version: integer('version').notNull(),
-  authorId: uuid('author_id').notNull().references(() => users.id),
+  authorId: text('author_id').notNull().references(() => users.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -107,11 +106,11 @@ export const documentHistory = pgTable('document_history', {
 // 评论表
 // ================================
 export const comments = pgTable('comments', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  documentId: uuid('document_id').notNull().references(() => documents.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id').notNull().references(() => users.id),
+  id: text('id').primaryKey(),
+  documentId: text('document_id').notNull().references(() => documents.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id),
   content: text('content').notNull(),
-  parentId: uuid('parent_id'),
+  parentId: text('parent_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -119,14 +118,14 @@ export const comments = pgTable('comments', {
 // 附件表
 // ================================
 export const attachments = pgTable('attachments', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
-  documentId: uuid('document_id').references(() => documents.id, { onDelete: 'set null' }),
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  documentId: text('document_id').references(() => documents.id, { onDelete: 'set null' }),
   name: text('name').notNull(),
   path: text('path').notNull(),
   size: bigint('size', { mode: 'number' }).notNull(),
   mimeType: text('mime_type').notNull(),
-  uploaderId: uuid('uploader_id').notNull().references(() => users.id),
+  uploaderId: text('uploader_id').notNull().references(() => users.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -134,7 +133,7 @@ export const attachments = pgTable('attachments', {
 // 系统配置表
 // ================================
 export const systemConfig = pgTable('system_config', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: text('id').primaryKey(),
   key: text('key').notNull().unique(),
   value: text('value'),
   description: text('description'),
@@ -146,7 +145,7 @@ export const systemConfig = pgTable('system_config', {
 // 邮件验证码表
 // ================================
 export const emailVerifications = pgTable('email_verifications', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: text('id').primaryKey(),
   email: text('email').notNull(),
   code: text('code').notNull(),
   expiresAt: timestamp('expires_at').notNull(),
@@ -157,12 +156,12 @@ export const emailVerifications = pgTable('email_verifications', {
 // 项目邀请表
 // ================================
 export const invitations = pgTable('invitations', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   email: text('email').notNull(),
   role: text('role', { enum: ['editor', 'viewer'] }).notNull().default('viewer'),
   token: text('token').notNull().unique(),
-  inviterId: uuid('inviter_id').notNull().references(() => users.id),
+  inviterId: text('inviter_id').notNull().references(() => users.id),
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
@@ -171,8 +170,8 @@ export const invitations = pgTable('invitations', {
 // Better Auth 表
 // ================================
 export const sessions = pgTable('sessions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   token: text('token').notNull().unique(),
   expiresAt: timestamp('expires_at').notNull(),
   ipAddress: text('ip_address'),
@@ -182,8 +181,8 @@ export const sessions = pgTable('sessions', {
 });
 
 export const accounts = pgTable('accounts', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   accountId: text('account_id').notNull(),
   providerId: text('provider_id').notNull(),
   accessToken: text('access_token'),
@@ -198,7 +197,7 @@ export const accounts = pgTable('accounts', {
 });
 
 export const verifications = pgTable('verifications', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: text('id').primaryKey(),
   identifier: text('identifier').notNull(),
   value: text('value').notNull(),
   expiresAt: timestamp('expires_at').notNull(),

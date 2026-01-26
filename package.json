@@ -10,7 +10,8 @@
     "db:studio": "drizzle-kit studio",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "vercel-build": "pnpm db:generate && pnpm db:push --force && next build"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
