@@ -112,6 +112,9 @@
     "noProjects": "暂无项目",
     "noMyProjectsDesc": "您还没有创建或参与任何项目",
     "noAllProjectsDesc": "还没有任何公开项目",
+    "visibilityPublic": "公开",
+    "visibilityPrivate": "私有",
+    "visibilityPassword": "加密",
     "noDescription": "暂无描述"
   },
   "Profile": {
@@ -244,7 +247,12 @@
       "confirmDeleteDesc": "此操作无法撤销。删除项目后，所有文档和历史记录将被永久移除。",
       "deleteSuccess": "项目 \"{name}\" 已删除",
       "noMatchingProjects": "没有找到匹配的项目",
-      "noMatchingProjects": "没有找到匹配的项目"
+      "visibilityLabels": {
+        "public": "公开",
+        "private": "私有",
+        "password": "加密",
+        "token": "Token"
+      }
     },
     "attachments": {
       "title": "附件管理",

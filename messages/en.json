@@ -112,6 +112,9 @@
     "noProjects": "No Projects",
     "noMyProjectsDesc": "You haven't created or joined any projects yet",
     "noAllProjectsDesc": "There are no public projects yet",
+    "visibilityPublic": "Public",
+    "visibilityPrivate": "Private",
+    "visibilityPassword": "Password",
     "noDescription": "No description"
   },
   "Profile": {
@@ -244,7 +247,12 @@
       "confirmDeleteDesc": "This action cannot be undone. All documents and history will be permanently removed.",
       "deleteSuccess": "Project \"{name}\" deleted successfully",
       "noMatchingProjects": "No matching projects found",
-      "noMatchingProjects": "No matching projects found"
+      "visibilityLabels": {
+        "public": "Public",
+        "private": "Private",
+        "password": "Password",
+        "token": "Token"
+      }
     },
     "attachments": {
       "title": "Attachment Management",
