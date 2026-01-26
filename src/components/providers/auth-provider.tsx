@@ -12,6 +12,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const syncUser = async () => {
+      // 获取当前 store 中的状态
+      // 由于 useUserStore 使用了 persist 中间件，刷新页面后 isAuthenticated 会保留上一次的状态
+      const { isAuthenticated } = useUserStore.getState();
+      
+      // 如果本地记录显示未登录，则不发送请求
+      if (!isAuthenticated) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const res = await fetch('/api/auth/me');
         const data = await res.json();
