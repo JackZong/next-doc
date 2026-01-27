@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Header } from '@/components/layout/header';
 import { useUserStore } from '@/stores/user-store';
 import { useDocumentStore } from '@/stores/document-store';
-import { Save, Loader2, History, Clock, Bold, Italic, Underline, Heading1, List as ListIcon, Link as LinkIcon, Image as ImageIcon, Quote } from 'lucide-react';
+import { Save, Loader2, History, Clock, Bold, Italic, Underline, Heading1, List as ListIcon, Link as LinkIcon, Image as ImageIcon, Quote, Video, Paperclip, AlignLeft, AlignCenter, AlignRight, Trash2 } from 'lucide-react';
 import { DocumentHistoryList } from '@/components/project/document-history-list';
 import {
   Sheet,
@@ -35,6 +35,12 @@ export default function DocumentEditPage({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [project, setProject] = useState<{ editorType?: string } | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadType, setUploadType] = useState<'image' | 'video' | 'attachment'>('image');
+  
+  // 选中的媒体元素管理
+  const [selectedElement, setSelectedElement] = useState<HTMLElement | null>(null);
+  const [toolbarStyle, setToolbarStyle] = useState<React.CSSProperties>({ display: 'none' });
 
   const execCommand = (command: string, value?: string) => {
     document.execCommand(command, false, value);
@@ -49,25 +55,188 @@ export default function DocumentEditPage({
     if (url) execCommand('createLink', url);
   };
 
-  const handleImage = () => {
-    const url = window.prompt('请输入图片地址:');
-    if (url) execCommand('insertImage', url);
+  const triggerUpload = (type: 'image' | 'video' | 'attachment') => {
+    setUploadType(type);
+    fileInputRef.current?.click();
   };
 
-  // 初始化富文本编辑器内容
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('identify', identify);
+    formData.append('type', uploadType);
+
+    setSaving(true);
+    try {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        if (project?.editorType === 'richtext') {
+          // 富文本模式
+          if (uploadType === 'image') {
+            // 先尝试把光标移回编辑器
+            editorRef.current?.focus();
+            execCommand('insertImage', data.url);
+          } else if (uploadType === 'video') {
+            editorRef.current?.focus();
+            const videoHtml = `<video src="${data.url}" controls style="max-width: 100%; border-radius: 8px; margin: 10px 0; display: block;"></video><p></p>`;
+            document.execCommand('insertHTML', false, videoHtml);
+          } else {
+            editorRef.current?.focus();
+            const fileHtml = `<a href="${data.url}" target="_blank" class="attachment-link" style="display: inline-flex; items-center; gap: 4px; padding: 4px 8px; background: rgba(0,0,0,0.05); border-radius: 4px; text-decoration: none; color: inherit;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>${data.fileName || '附件'}</a>&nbsp;`;
+            document.execCommand('insertHTML', false, fileHtml);
+          }
+          if (editorRef.current) setContent(editorRef.current.innerHTML);
+        } else {
+          // Markdown 模式
+          let markdownText = '';
+          if (uploadType === 'image') {
+            markdownText = `![${data.fileName}](${data.url})\n`;
+          } else if (uploadType === 'video') {
+            markdownText = `\n<video src="${data.url}" controls style="max-width: 100%;"></video>\n`;
+          } else {
+            markdownText = `[附件：${data.fileName}](${data.url})\n`;
+          }
+          
+          setContent(prev => prev + markdownText);
+        }
+      } else {
+        setError(data.error || '上传失败');
+      }
+    } catch {
+      setError('上传请求失败');
+    } finally {
+      setSaving(false);
+      if (e.target) e.target.value = ''; // 重置 input
+    }
+  };
+
+  // 处理图片和视频的点击选中
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'IMG' || target.tagName === 'VIDEO') {
+        // 先移除之前选中的样式
+        if (selectedElement) {
+          selectedElement.style.outline = 'none';
+          selectedElement.style.boxShadow = 'none';
+        }
+
+        setSelectedElement(target);
+        
+        // 添加选中视觉效果
+        target.style.outline = '2px solid #3b82f6';
+        target.style.boxShadow = '0 0 15px rgba(59, 130, 246, 0.5)';
+        target.style.cursor = 'default';
+        
+        // 计算工具栏位置 (相对于编辑器容器)
+        const editorContainer = editor.parentElement; // 拿到 relative 容器
+        if (editorContainer) {
+          const rect = target.getBoundingClientRect();
+          const containerRect = editorContainer.getBoundingClientRect();
+          
+          setToolbarStyle({
+            display: 'flex',
+            top: `${rect.top - containerRect.top - 45}px`, 
+            left: `${rect.left - containerRect.left + (rect.width / 2) - 100}px`,
+          });
+        }
+      } else if (!(target.closest('.media-toolbar'))) {
+        if (selectedElement) {
+          selectedElement.style.outline = 'none';
+          selectedElement.style.boxShadow = 'none';
+        }
+        setSelectedElement(null);
+        setToolbarStyle({ display: 'none' });
+      }
+    };
+
+    editor.addEventListener('click', handleClick);
+    return () => editor.removeEventListener('click', handleClick);
+  }, [selectedElement]);
+
+  // 修改选中元素的大小
+  const setElementSize = (size: string) => {
+    if (!selectedElement) return;
+    selectedElement.style.width = size;
+    selectedElement.style.height = 'auto'; // 保持比例
+    if (editorRef.current) setContent(editorRef.current.innerHTML);
+  };
+
+  // 修改选中元素的位置
+  const setElementAlign = (align: 'left' | 'center' | 'right') => {
+    if (!selectedElement) return;
+    
+    if (align === 'center') {
+      selectedElement.style.display = 'block';
+      selectedElement.style.margin = '10px auto';
+      selectedElement.style.float = 'none';
+      selectedElement.style.clear = 'both';
+    } else if (align === 'left') {
+      selectedElement.style.display = 'inline-block';
+      selectedElement.style.float = 'left';
+      selectedElement.style.margin = '0 20px 20px 0';
+      selectedElement.style.clear = 'none';
+    } else if (align === 'right') {
+      selectedElement.style.display = 'inline-block';
+      selectedElement.style.float = 'right';
+      selectedElement.style.margin = '0 0 20px 20px';
+      selectedElement.style.clear = 'none';
+    }
+    
+    if (editorRef.current) setContent(editorRef.current.innerHTML);
+    
+    // 重新校准工具栏位置
+    // 重新校准工具栏位置
+    setTimeout(() => {
+      if (selectedElement && editorRef.current) {
+        const editorContainer = editorRef.current.parentElement;
+        if (editorContainer) {
+          const rect = selectedElement.getBoundingClientRect();
+          const containerRect = editorContainer.getBoundingClientRect();
+          setToolbarStyle(prev => ({
+            ...prev,
+            top: `${rect.top - containerRect.top - 45}px`,
+            left: `${rect.left - containerRect.left + (rect.width / 2) - 100}px`,
+          }));
+        }
+      }
+    }, 50);
+  };
+
+  // 删除选中元素
+  const deleteElement = () => {
+    if (!selectedElement) return;
+    selectedElement.remove();
+    setSelectedElement(null);
+    setToolbarStyle({ display: 'none' });
+    if (editorRef.current) setContent(editorRef.current.innerHTML);
+  };
+
+  // 合并后的生命周期逻辑
+  // 1. 初始化富文本编辑器内容
   useEffect(() => {
     if (project?.editorType === 'richtext' && editorRef.current && content && !editorRef.current.innerHTML) {
       editorRef.current.innerHTML = content;
     }
   }, [project?.editorType, content]);
 
-  // 获取文档
+  // 2. 获取文档详情
   useEffect(() => {
     const fetchDocument = async () => {
       try {
         const response = await fetch(`/api/documents/${docId}`);
         const data = await response.json();
-
         if (response.ok) {
           setCurrentDocument(data.document);
           setTitle(data.document.title);
@@ -80,29 +249,25 @@ export default function DocumentEditPage({
         setError('网络错误');
       }
     };
-
     fetchDocument();
   }, [docId, setCurrentDocument]);
 
-  // 保存文档
+  // 3. 保存文档逻辑
   const handleSave = useCallback(async () => {
+    if (!title.trim()) return;
     setSaving(true);
     setError('');
-
     try {
       const response = await fetch(`/api/documents/${docId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, content }),
       });
-
       const data = await response.json();
-
       if (!response.ok) {
         setError(data.error || '保存失败');
         return;
       }
-
       setCurrentDocument(data.document);
       setLastSaved(new Date());
     } catch {
@@ -112,7 +277,7 @@ export default function DocumentEditPage({
     }
   }, [docId, title, content, setSaving, setCurrentDocument]);
 
-  // 键盘快捷键保存
+  // 4. 键盘快捷键监听
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
@@ -120,12 +285,11 @@ export default function DocumentEditPage({
         handleSave();
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSave]);
 
-  // 未登录重定向
+  // 5. 权限检查
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login');
@@ -143,9 +307,7 @@ export default function DocumentEditPage({
             </svg>
           </div>
           <h2 className="text-xl font-semibold text-foreground mb-2">{error}</h2>
-          <Button variant="outline" onClick={() => router.back()}>
-            返回
-          </Button>
+          <Button variant="outline" onClick={() => router.back()}>返回</Button>
         </main>
       </div>
     );
@@ -250,9 +412,9 @@ export default function DocumentEditPage({
 
           {/* 内容编辑器 */}
           {project?.editorType === 'richtext' ? (
-            <div className="min-h-[calc(100vh-250px)] bg-muted/30 border border-border rounded-lg overflow-hidden flex flex-col">
+            <div className="h-[calc(100vh-200px)] bg-muted/30 border border-border rounded-lg overflow-hidden flex flex-col relative">
               {/* 富文本编辑器的功能工具栏 */}
-              <div className="flex items-center gap-1 p-2 border-b border-border bg-muted/50">
+              <div className="flex items-center gap-1 p-2 border-b border-border bg-muted/80 backdrop-blur-md sticky top-0 z-10">
                 <Button 
                   variant="ghost" 
                   size="sm" 
@@ -325,11 +487,29 @@ export default function DocumentEditPage({
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={handleImage}
+                  onClick={() => triggerUpload('image')}
                   className="h-8 w-8 p-0 text-foreground hover:bg-background"
-                  title="图片"
+                  title="上传图片"
                 >
                   <ImageIcon className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => triggerUpload('video')}
+                  className="h-8 w-8 p-0 text-foreground hover:bg-background"
+                  title="上传视频"
+                >
+                  <Video className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => triggerUpload('attachment')}
+                  className="h-8 w-8 p-0 text-foreground hover:bg-background"
+                  title="上传附件"
+                >
+                  <Paperclip className="h-4 w-4" />
                 </Button>
               </div>
               
@@ -337,7 +517,7 @@ export default function DocumentEditPage({
                 ref={editorRef}
                 contentEditable
                 onInput={(e) => setContent(e.currentTarget.innerHTML)}
-                className="flex-1 min-h-[calc(100vh-320px)] bg-transparent border-none outline-none overflow-y-auto px-6 py-6 prose dark:prose-invert max-w-none rich-text-content [&>*:first-child]:mt-0"
+                className="flex-1 bg-transparent border-none outline-none overflow-y-auto px-6 py-6 prose dark:prose-invert max-w-none rich-text-content [&>*:first-child]:mt-0"
                 style={{ outline: 'none' }}
               />
             </div>
@@ -346,7 +526,7 @@ export default function DocumentEditPage({
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="开始编写 Markdown 内容..."
-              className="min-h-[calc(100vh-200px)] bg-muted/30 border-border text-foreground placeholder:text-muted-foreground resize-none font-mono text-sm leading-relaxed focus-visible:ring-primary/20"
+              className="h-[calc(100vh-200px)] bg-muted/30 border-border text-foreground placeholder:text-muted-foreground resize-none font-mono text-sm leading-relaxed focus-visible:ring-primary/20"
             />
           )}
 
@@ -358,6 +538,40 @@ export default function DocumentEditPage({
             <span>•</span>
             <span>按 ⌘+S 或 Ctrl+S 快速保存</span>
           </div>
+          
+          {/* 媒体元素控制菜单 */}
+          {selectedElement && (
+            <div 
+              className="media-toolbar absolute z-50 flex items-center gap-1 p-1 bg-popover border border-border rounded-lg shadow-xl animate-in fade-in zoom-in duration-200"
+              style={toolbarStyle}
+            >
+              <div className="flex items-center border-r border-border pr-1 mr-1">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setElementAlign('left')} title="左对齐"><AlignLeft className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setElementAlign('center')} title="居中对齐"><AlignCenter className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setElementAlign('right')} title="右对齐"><AlignRight className="h-4 w-4" /></Button>
+              </div>
+              <div className="flex items-center border-r border-border pr-1 mr-1 gap-1">
+                <Button variant="ghost" className="h-7 px-1.5 text-[10px]" onClick={() => setElementSize('25%')}>25%</Button>
+                <Button variant="ghost" className="h-7 px-1.5 text-[10px]" onClick={() => setElementSize('50%')}>50%</Button>
+                <Button variant="ghost" className="h-7 px-1.5 text-[10px]" onClick={() => setElementSize('100%')}>100%</Button>
+              </div>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10" onClick={deleteElement} title="删除"><Trash2 className="h-4 w-4" /></Button>
+            </div>
+          )}
+          {/* 隐藏的文件上传输入框 */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            onChange={handleFileChange}
+            accept={
+              uploadType === 'image' 
+                ? 'image/*' 
+                : uploadType === 'video' 
+                  ? 'video/*' 
+                  : '*'
+            }
+          />
         </div>
       </main>
     </div>

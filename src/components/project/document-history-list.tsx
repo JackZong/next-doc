@@ -86,47 +86,80 @@ export function DocumentHistoryList({
   }
 
   return (
-    <ScrollArea className="h-[400px] pr-4">
-      <div className="space-y-4">
-        {histories.map((item) => (
-          <div 
-            key={item.id} 
-            className="flex items-start justify-between p-3 rounded-lg border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800/50 transition-colors"
-          >
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-blue-500 px-1.5 py-0.5 bg-blue-500/10 rounded">
-                  v{item.version}
-                </span>
-                <span className="text-sm font-medium text-zinc-200">
-                  {item.changeLog || '更新文档内容'}
-                </span>
-              </div>
-              <div className="flex items-center gap-3 text-xs text-zinc-500">
-                <div className="flex items-center gap-1">
-                  <User className="h-3 w-3" />
-                  {item.creatorName}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true, locale: zhCN })}
-                </div>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={!!isRestoring}
-              onClick={() => handleRestore(item.id)}
-              className="text-zinc-400 hover:text-blue-400 hover:bg-blue-500/10 h-8 gap-1"
+    <ScrollArea className="h-[calc(100vh-180px)]">
+      <div className="space-y-3 px-1 py-2">
+        {histories.map((item, index) => (
+          <div key={item.id} className="group transition-all duration-300">
+            <div 
+              className={`relative flex flex-col gap-2 p-4 rounded-xl border transition-all duration-200 ${
+                index === 0 
+                  ? 'bg-primary/5 border-primary/30 shadow-[0_2px_12px_-3px_rgba(var(--primary),0.08)]' 
+                  : 'bg-card border-border/80 hover:border-primary/30 hover:bg-accent/30'
+              }`}
             >
-              {isRestoring === item.id ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <RotateCcw className="h-3 w-3" />
+              {/* 顶部：版本 + 标题 */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded tracking-wider ${
+                      index === 0 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'bg-muted-foreground/10 text-muted-foreground'
+                    }`}>
+                      V{item.version}
+                    </span>
+                    {index === 0 && (
+                      <div className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                        <div className="h-1 w-1 rounded-full bg-emerald-500" />
+                        当前
+                      </div>
+                    )}
+                    <h4 className="text-[13px] font-bold text-foreground leading-tight truncate">
+                      {item.changeLog || '文档快照'}
+                    </h4>
+                  </div>
+                  
+                  {/* 中部：元数据 */}
+                  <div className="flex items-center gap-2.5 text-[11px] text-muted-foreground/70 font-medium">
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-4 w-4 rounded-full bg-muted flex items-center justify-center overflow-hidden border border-border/50">
+                        <User className="h-2 w-2" />
+                      </div>
+                      <span>{item.creatorName}</span>
+                    </div>
+                    <span className="opacity-30">•</span>
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3 w-3 opacity-60" />
+                      <span>{formatDistanceToNow(new Date(item.createdAt), { addSuffix: true, locale: zhCN })}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {index !== 0 && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    disabled={!!isRestoring}
+                    onClick={() => handleRestore(item.id)}
+                    className="h-8 w-8 rounded-full hover:bg-primary/10 hover:text-primary transition-all shrink-0 ml-auto"
+                    title="恢复此版本"
+                  >
+                    {isRestoring === item.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                )}
+              </div>
+              
+              {/* 日志详情（如果有） */}
+              {item.changeLog && item.changeLog !== '更新文档内容' && (
+                <p className="text-[11px] text-muted-foreground/60 bg-muted/20 p-2 rounded border border-border/20 line-clamp-2 italic">
+                  &ldquo;{item.changeLog}&rdquo;
+                </p>
               )}
-              恢复
-            </Button>
+            </div>
           </div>
         ))}
       </div>

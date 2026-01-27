@@ -47,19 +47,54 @@ export async function POST(request: NextRequest) {
     }
 
     // 验证文件类型
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/x-icon'];
-    if (!allowedTypes.includes(file.type)) {
+    const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/x-icon'];
+    const videoTypes = ['video/mp4', 'video/webm', 'video/ogg'];
+    const docTypes = [
+      'application/pdf', 
+      'application/msword', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/zip',
+      'application/x-zip-compressed',
+      'application/x-7z-compressed',
+      'application/x-rar-compressed',
+      'text/plain'
+    ];
+    
+    const allowedTypes = [...imageTypes, ...videoTypes, ...docTypes];
+    
+    // 如果是附件类型，且不在 docTypes 中，也要允许（作为普通文件）
+    // 这里为了安全，我们还是列出常见的，或者如果 type 为 'attachment' 则放宽限制
+    if (type === 'attachment' && !allowedTypes.includes(file.type)) {
+        // 如果是附件，放宽一些 MIME 限制，或者干脆只排除危险类型（如 .exe）
+        const dangerousTypes = ['application/x-msdownload', 'application/x-sh', 'application/x-bat'];
+        if (dangerousTypes.includes(file.type)) {
+            return NextResponse.json(
+                { success: false, error: '不支持上传危险文件类型' },
+                { status: 400 }
+            );
+        }
+    } else if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
-        { success: false, error: '不支持的文件类型，仅支持 JPG、PNG、GIF、WebP、SVG、ICO 格式' },
+        { success: false, error: '不支持的文件类型' },
         { status: 400 }
       );
     }
 
-    // 限制文件大小（5MB）
-    const maxSize = 5 * 1024 * 1024;
+    // 限制文件大小
+    let maxSize = 5 * 1024 * 1024; // 默认 5MB
+    if (videoTypes.includes(file.type)) {
+      maxSize = 50 * 1024 * 1024; // 视频允许 50MB
+    } else if (type === 'attachment') {
+      maxSize = 20 * 1024 * 1024; // 附件允许 20MB
+    }
+
     if (file.size > maxSize) {
       return NextResponse.json(
-        { success: false, error: '文件大小不能超过 5MB' },
+        { success: false, error: `文件大小不能超过 ${maxSize / (1024 * 1024)}MB` },
         { status: 400 }
       );
     }
@@ -75,7 +110,7 @@ export async function POST(request: NextRequest) {
 
     if (!project) {
       return NextResponse.json(
-        { success: false, error: '项目不存在' },
+        { success: false, error: '项目 nonexistent' },
         { status: 404 }
       );
     }
@@ -113,14 +148,12 @@ export async function POST(request: NextRequest) {
       });
     } catch (dbError) {
       console.error('保存附件记录失败:', dbError);
-      // 虽然数据库记录失败，但文件已经上传，仍然返回成功。
-      // 或者根据业务逻辑决定是否报错。
     }
 
     return NextResponse.json({
       success: true,
       url: publicUrl,
-      fileName,
+      fileName: file.name,
       type,
     });
   } catch (error) {
@@ -143,6 +176,12 @@ function getExtensionFromMime(mimeType: string): string {
     'image/webp': '.webp',
     'image/svg+xml': '.svg',
     'image/x-icon': '.ico',
+    'video/mp4': '.mp4',
+    'video/webm': '.webm',
+    'video/ogg': '.ogv',
+    'application/pdf': '.pdf',
+    'application/zip': '.zip',
+    'text/plain': '.txt',
   };
-  return mimeToExt[mimeType] || '.png';
+  return mimeToExt[mimeType] || '';
 }
