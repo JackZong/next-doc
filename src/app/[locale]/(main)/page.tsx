@@ -17,9 +17,10 @@ import { useLocale, useTranslations } from 'next-intl';
 function ProjectCard({ project }: { project: ProjectInfo }) {
   const t = useTranslations('HomePage');
   const locale = useLocale();
-  
+  const { isAuthenticated } = useUserStore();
+
   return (
-    <Link href={`/projects/${project.identify}`}>
+    <Link href={isAuthenticated ? `/projects/${project.identify}` : `/docs/${project.identify}`}>
       <Card className="group h-full bg-card border-border hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5">
         {/* 封面 */}
         <div className="relative h-32 overflow-hidden rounded-t-lg bg-muted">
